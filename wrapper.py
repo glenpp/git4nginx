@@ -1,4 +1,22 @@
-"""Minimal git http wrapper
+"""Minimal git http wrapper for Nginx with uwsgi
+
+git-glue tools for using git via http(s) with Nginx
+Copyright (C) 2019  Glen Pitt-Pladdy
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 """
 
 #import os
