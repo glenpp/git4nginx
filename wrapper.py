@@ -5,6 +5,7 @@
 #import sys
 import logging
 import yaml
+import re
 import subprocess
 
 
@@ -34,13 +35,27 @@ app.logger.propagate = True
 
 
 
+@app.route('/<string:project>.git')
+@app.route('/<string:project>.git/<path:sub_path>', methods=['GET', 'POST'])
 @app.route('/<string:project_group>/<string:project>.git')
 @app.route('/<string:project_group>/<string:project>.git/<path:sub_path>', methods=['GET', 'POST'])
-def githandler(project_group, project, sub_path=None):
+def githandler(project, project_group=None, sub_path=None):
+    # sanity check inputs - limit these within known safe bounds
+    if len(project) > 64:
+        app.logger.error("Error: Project names are limited to 64 characters (before .git)")
+    if not re.match(r'^[\w\-]{3,64}$', project):
+        app.logger.error("Error: Project names are limited 3-64 alphanumerics, underscore '_' and hyphon '-' (before .git)")
     project += '.git'
-    # TODO sanity check inputs TODO
+    if project_group is not None:
+        if len(project_group) > 64:
+            app.logger.error("Error: Project Group names are limited to 64 characters")
+        if not re.match(r'^[\w\-]{3,64}$', project_group):
+            app.logger.error("Error: Project Group names are limited 3-64 alphanumerics, underscore '_' and hyphon '-'")
+    # TODO should we sanity check sub_path?
+
     config = load_config()
     is_write = False if flask.request.args.get('service') != 'git-receive-pack' and sub_path != 'git-receive-pack' else True
+
 
     # TODO custom auth
     authenticated_user = flask.request.remote_user
@@ -75,7 +90,7 @@ def githandler(project_group, project, sub_path=None):
     }
     # TODO if we identify the user set REMOTE_USER
     if flask.request.method == 'POST':
-        return cgi_wrapper(config['bin_path'], extra_env, flask.request.data)
+        return cgi_wrapper(config['bin_path'], extra_env, flask.request.data)   # TODO switch to flask.request.stream for input
     return cgi_wrapper(config['bin_path'], extra_env)
 
 
@@ -134,7 +149,7 @@ class Permissions(object):
     def get_permission(self, project_group, project):
         """Calculate permissions for a request
 
-        :arg project_group: str, project group being requested
+        :arg project_group|None: str, project group being requested
         :arg project: str, project being requested
         :return: dict, containing read and write keys with bool values
         """
@@ -157,7 +172,6 @@ class Permissions(object):
         authorisation = authorisation[project]
         if self._check_node(authorisation, permission):
             return permission
-        # TODO we could dig deeper (branches, merge limits, etc)
         return permission
         
 
@@ -207,8 +221,7 @@ def cgi_wrapper(bin_path, extra_env=None, data=None):
     cgienv['GATEWAY_INTERFACE'] = 'CGI/1.1'
     if extra_env is not None:
         cgienv.update(extra_env)
-    #cgienv['SCRIPT_NAME'] = # request path
-    # execute
+    # execute TODO important - this will not handle large requests since everything is in memory. Needs tweaking to chunk data.
     if flask.request.method == 'GET':
         proc = subprocess.Popen(
             bin_path,
@@ -256,4 +269,3 @@ def cgi_wrapper(bin_path, extra_env=None, data=None):
     for header in headers:
         response.headers[header[0]] = header[1]
     return response
-
