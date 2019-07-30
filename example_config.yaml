@@ -1,0 +1,57 @@
+---
+
+repo_root: /var/lib/git/
+bin_path: /usr/lib/git-core/git-http-backend
+
+# password not provided or None implies allow webserver to authenticate user
+# TODO no application authentication is implemented yet
+authentication:
+  joe:
+    password: None
+    groups:
+      - developers_group
+
+  sydney:
+    groups:
+      - developers_group
+
+  james:
+    groups:
+      - managers_group
+
+
+authorisation:
+  # any level can have lists of users with:
+  #   .read_users:
+  #   .write_users:
+  # and lists of groups with:
+  #   .read_groups:
+  #   .write_groups:
+  # write permission automatically implies read permission
+  #
+  # null (Python None) group is for to-level repos (ie not in a sub-directory)
+
+  # project groups
+  some_project_group_sub_dir:
+    .read_groups:
+      - developers_group
+    .write_users:
+      # implies read as well
+      - joe
+
+    # projects
+    test.git:
+      .write_groups:
+        - developers_group
+      .write_users:
+        - james
+
+  # projects at the top level (ie. no project group)
+  null:
+    some_top_level_project.git:
+      .write_groups:
+        - managers_group
+
+
+
+
