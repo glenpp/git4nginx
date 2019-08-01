@@ -19,8 +19,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """
 
-#import os
-#import sys
 import logging
 import yaml
 import re
@@ -45,16 +43,11 @@ app.logger.propagate = True
 
 
 
-
-#@app.route('/')
-#def index():
-#    return "uwsgi flask /"
-#    return render_template('index.html')
-
-
-
+# repo must end .git
+# may be at the top level (project_group=None)
 @app.route('/<string:project>.git')
 @app.route('/<string:project>.git/<path:sub_path>', methods=['GET', 'POST'])
+# ... or in a sub directory (project_group)
 @app.route('/<string:project_group>/<string:project>.git')
 @app.route('/<string:project_group>/<string:project>.git/<path:sub_path>', methods=['GET', 'POST'])
 def githandler(project, project_group=None, sub_path=None):
@@ -69,9 +62,29 @@ def githandler(project, project_group=None, sub_path=None):
             app.logger.error("Error: Project Group names are limited to 64 characters")
         if not re.match(r'^[\w\-]{3,64}$', project_group):
             app.logger.error("Error: Project Group names are limited 3-64 alphanumerics, underscore '_' and hyphon '-'")
-    # TODO should we sanity check sub_path?
+    # sanity checking sub_path and query based on https://www.git-scm.com/docs/http-protocol
+    if flask.request.method == 'GET':
+        if sub_path == 'info/refs':
+            if len(flask.request.args) != 1 or 'service' not in flask.request.args:
+                app.logger.critical("Unexpected query for GET {}: %s", sub_path, str(flask.request.args))
+                flask.abort(400)
+            if flask.request.args['service'] not in ['git-upload-pack', 'git-receive-pack']:
+                app.logger.critical("Unexpected query for GET {}: %s", sub_path, str(flask.request.args))
+                flask.abort(400)
+        else:
+            app.logger.critical("Unexpected sub_path for GET: %s", sub_path)
+            flask.abort(400)
+    elif flask.request.method == 'POST':
+        if sub_path not in ['git-receive-pack', 'git-upload-pack']:
+            app.logger.critical("Unexpected sub_path for POST: %s", sub_path)
+            flask.abort(400)
+    else:
+        app.logger.critical("Unexpected HTTP METHOD: %s", flask.request.method)
+        flask.abort(400)
 
+    # load config
     config = load_config()
+    # work out the type of operation
     is_write = False if flask.request.args.get('service') != 'git-receive-pack' and sub_path != 'git-receive-pack' else True
 
 
@@ -112,11 +125,6 @@ def githandler(project, project_group=None, sub_path=None):
     return cgi_wrapper(config['bin_path'], extra_env)
 
 
-## debug catch all
-#@app.route('/<path:path>', methods=['GET', 'POST'])
-#def test(path):
-#    app.logger.critical("Catch all: {}".format(path))
-#    return 'none'
 
 
 
@@ -195,23 +203,22 @@ class Permissions(object):
 
 
 def load_config():
-    """Load the config file specified in uwsgi environment GITWRAPPER_CONFIG
+    """Load the config file specified in uwsgi environment GITGLUE_CONFIG
 
     :return: config contents (should be dict)
     """
-    if 'GITWRAPPER_CONFIG' not in flask.request.environ:
-        app.logger.critical("Configuration file not configured: GITWRAPPER_CONFIG must be in uwsgi environment")
+    if 'GITGLUE_CONFIG' not in flask.request.environ:
+        app.logger.critical("Configuration file not configured: GITGLUE_CONFIG must be in uwsgi environment")
         flask.abort(500)
     try:
-        with open(flask.request.environ['GITWRAPPER_CONFIG'], 'rt') as f_conf:
+        with open(flask.request.environ['GITGLUE_CONFIG'], 'rt') as f_conf:
             config = yaml.safe_load(f_conf)
     except FileNotFoundError:
-        app.logger.critical("Configuration file not found: {}".format(flask.request.environ['GITWRAPPER_CONFIG']))
+        app.logger.critical("Configuration file not found: {}".format(flask.request.environ['GITGLUE_CONFIG']))
         flask.abort(500)
     except yaml.parser.ParserError as exc:
         app.logger.critical("Configuration file yaml error:\n{}".format(exc))
         flask.abort(500)
-    del flask.request.environ['GITWRAPPER_CONFIG']
     # sanity check
     if 'authentication' not in config or not isinstance(config['authentication'], dict):
         app.logger.critical("Configuration file does not contain 'authentication' map")
