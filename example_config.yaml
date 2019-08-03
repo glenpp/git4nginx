@@ -54,4 +54,24 @@ authorisation:
 
 
 
+hooks:
+  # global
+
+  # ensure changes go through each branch to prod
+  # no developing in prod!
+  .branch_flow:
+    enable: true
+    flow:
+      - dev
+      - test
+      - master
+
+#  # project group
+#  default:
+#    # at group
+#
+#    # project
+#    test.git:
+#      # at project
+
 
