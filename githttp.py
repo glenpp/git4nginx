@@ -22,7 +22,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import logging
 import yaml
 import re
+import tempfile
 import subprocess
+import os
 
 
 
@@ -32,7 +34,7 @@ app = flask.Flask(__name__)
 #app.config.from_object('config')    # loads config.py
 # ensure our logger is used see http://y.tsutsumi.io/global-logging-with-flask.html
 logging.basicConfig(
-    format='[%(asctime)s] %(levelname)s in %(filename)s:%(lineno)d - %(message)s',
+    format='[%(asctime)s] %(levelname)s %(filename)s:%(lineno)d - %(message)s',
     datefmt='%c',
 #    level=logging.INFO,
     level=logging.DEBUG,
@@ -117,11 +119,14 @@ def githandler(project, project_group=None, sub_path=None):
     # run the cgi-bin with wrapper
     extra_env = {
         'GIT_PROJECT_ROOT': config['repo_root'],
-        'GIT_HTTP_EXPORT_ALL': ''
+        'GIT_HTTP_EXPORT_ALL': '',
     }
     # TODO if we identify the user set REMOTE_USER
     if flask.request.method == 'POST':
-        return cgi_wrapper(config['bin_path'], extra_env, flask.request.data)   # TODO switch to flask.request.stream for input
+        with HookLogDir() as temp_log_dir:
+            extra_env['GITGLUE_LOG_DIR'] = temp_log_dir
+            response = cgi_wrapper(config['bin_path'], extra_env, flask.request.data)   # TODO switch to flask.request.stream for input
+        return response
     return cgi_wrapper(config['bin_path'], extra_env)
 
 
@@ -227,6 +232,43 @@ def load_config():
         app.logger.critical("Configuration file does not contain 'authorisation' map")
         flask.abort(500)
     return config
+
+
+
+class HookLogDir(object):
+    level2int = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL,
+    }
+    def __init__(self):
+        self._path = None
+    def __enter__(self):
+        self._path = tempfile.mkdtemp()
+        return self._path
+    def __exit__(self, exc_type, exc_value, traceback):
+        # re-log hook log lines
+        for log in sorted(os.listdir(self._path)):
+            app.logger.debug("start logfile: %s", log)
+            epoch, hook = log.split('_', 1)
+            log_path = os.path.join(self._path, log)
+            with open(log_path, 'rt') as f_log:
+                for line in f_log:
+                    match = re.match(r'^(\d+\.\d+)\s+\[(\w+)\]\s+(\S.*)\s+\(([^\(\)]+)\)$', line.strip())
+                    if not match:
+                        app.logger.critical("Can't parse hook log %s line: %s", log, line)
+                        continue
+                    if match.group(2) not in self.level2int:
+                        app.logger.critical("Don't have a log level match for %s in line: %s", match.group(2), line)
+                        continue
+                    level = self.level2int[match.group(2)]
+                    app.logger.log(level, match.group(3))
+            app.logger.debug("end logfile: %s", log)
+            os.unlink(log_path)
+        os.rmdir(self._path)
+
 
 
 def cgi_wrapper(bin_path, extra_env=None, data=None):
