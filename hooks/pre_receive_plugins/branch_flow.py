@@ -44,7 +44,6 @@ class Plugin(object):
         """Execute the plugin - ensure revisions are in the upstream branch
         """
         for rev in self.revisions:
-            logging.info(str(rev))
             head = rev[2]
             if not head.startswith('refs/heads/'):
                 hook_helper.log_abort("Unexpected refernce: {}".format(head))
@@ -66,12 +65,13 @@ class Plugin(object):
             upstream_branch = self.plugin_config['flow'][flow_step - 1]
 
             # check for revision in upstream
-            upstream_revisions = self.gitwrapper.get_revisions('{}^..{}'.format(commit_from, upstream_branch))
+            upstream_revisions = self.gitwrapper.get_revisions([commit_from, upstream_branch])
             if not upstream_revisions:
                 message = "Upstream branch ({}) does not contain from revision for target ({}): {}".format(upstream_branch, branch, commit_from)
                 print(message)
                 hook_helper.log_abort(message)
-            if commit_to not in upstream_revisions[1:]:
+            to_range = upstream_revisions if commit_from == self.gitwrapper.zero else upstream_revisions[:-1]
+            if commit_to not in to_range:
                 message = "Upstream branch ({}) does not contain to revision for target ({}): {}".format(upstream_branch, branch, commit_to)
                 print(message)
                 hook_helper.log_abort(message)
