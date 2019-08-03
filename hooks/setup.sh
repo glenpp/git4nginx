@@ -21,37 +21,47 @@
 #
 
 
-HOOKS="
-	applypatch-msg
-	commit-msg
-	fsmonitor-watchman
-	p4-pre-submit
-	post-checkout
-	post-commit
-	post-merge
-	post-receive
-	post-rewrite
-	post-update
-	pre-applypatch
-	pre-auto-gc
-	pre-commit
-	prepare-commit-msg
-	pre-push
-	pre-rebase
-	pre-receive
-	push-to-checkout
-	sendemail-validate
-	update
-"
+#	applypatch-msg
+#	commit-msg
+#	fsmonitor-watchman
+#	p4-pre-submit
+#	post-checkout
+#	post-commit
+#	post-merge
+#	post-receive
+#	post-rewrite
+#	post-update
+#	pre-applypatch
+#	pre-auto-gc
+#	pre-commit
+#	prepare-commit-msg
+#	pre-push
+#	pre-rebase
+#	pre-receive
+#	push-to-checkout
+#	sendemail-validate
+#	update
 
 MASTER_DIR=`dirname "$0"`
 MASTER_DIR=`realpath "$MASTER_DIR"`
-MASTER_HOOK="$MASTER_DIR/master_hook.py"
-if [ ! -x "$MASTER_HOOK" ]; then
-	echo "Master hook is not where we expect: $MASTER_HOOK" >&2
-	echo "Is this script in the same location?" >&2
-	exit 1
-fi
+
+link_hook() {
+	# <hook name>
+	hook_name=$1
+	if [ -e "$hook_name" ]; then
+		return
+	fi
+	hook_python=`echo "$hook_name"| sed s/-/_/g`
+	master_hook="$MASTER_DIR/master_${hook_python}.py"
+	if [ ! -x "$master_hook" ]; then
+		echo "Master hook is not where we expect: $master_hook" >&2
+		echo "Is this script in the same location?" >&2
+		exit 1
+	fi
+	echo "Linking $hook_name..."
+	ln -s "$master_hook" "$hook_name"
+	echo "done"
+}
 
 # get into repo hooks directory
 if pwd | grep '\.git/hooks$'; then
@@ -65,10 +75,6 @@ else
 fi
 
 # create links
-for hook in $HOOKS
-do
-	echo "Linking $hook..."
-	ln -s "$MASTER_HOOK" "$hook"
-done
-echo "done"
+#link_hook update
+link_hook pre-receive
 
