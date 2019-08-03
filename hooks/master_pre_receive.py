@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Universal hook - symlink everything to this
+"""Master pre-receive hook - symlink from repo to this
 
 git-glue tools for using git via http(s) with Nginx
 Copyright (C) 2019  Glen Pitt-Pladdy
