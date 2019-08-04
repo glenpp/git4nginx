@@ -28,7 +28,7 @@ class Plugin(object):
     run_hooks = [
         'update',
     ]
-    def __init__(self, username, groups, user_authentication, plugin_config, config, inputs, gitwrapper):
+    def __init__(self, username, groups, user_authentication, plugin_config, config, inputs, project_group, project, gitwrapper):
         """Common setup for plugin
         """
         self.username = username
@@ -38,6 +38,8 @@ class Plugin(object):
         self.config = config
         self.argv = inputs[0]
         self.revisions = inputs[1]
+        self.project_group = project_group
+        self.project = project
         self.gitwrapper = gitwrapper
 
     def run(self):
