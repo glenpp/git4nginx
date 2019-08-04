@@ -57,16 +57,34 @@ def main(argv):
     groups = user_authentication['groups'] if 'groups' in user_authentication else []
     inputs = [argv, references]
     gitwrapper = hook_helper.GitWrapper()
-    # load & run plugins
+    project_group, project = hook_helper.repo_parts(config['repo_root'])
+    # process each plugin that is enabled
     for plugin_file in sorted(os.listdir(plugin_dir)):
         logging.debug(plugin_file)
         plugin_name, ext = os.path.splitext(plugin_file)
         if ext != '.py':
             continue
-        if '.' + plugin_name not in config['hooks']:  # TODO needs to search for this repo, check enabled
-            # plugin name not enabled
+        # calculate specific project config
+        plugin_config_key = '.' + plugin_name
+        plugin_config = None
+        if plugin_config_key in config['hooks']:
+            # global - all projects
+            plugin_config = config['hooks'][plugin_config_key]
+        if project_group in config['hooks']:
+            if plugin_config_key in config['hooks'][project_group]:
+                # project group - all projects in group
+                plugin_config = config['hooks'][project_group][plugin_config_key]
+            if project in config['hooks'][project_group]:
+                if plugin_config_key in config['hooks'][project_group][project]:
+                    # project specific config
+                    plugin_config = config['hooks'][project_group][project][plugin_config_key]
+        if plugin_config is None:
+            # plugin not configured
             continue
-        plugin_config = config['hooks']['.' + plugin_name]    # TODO needs to search for this repo
+        if 'enable' in plugin_config and not plugin_config['enable']:
+            # plugin disabled
+            continue
+        # load and run the plugin
         logging.info("Loading plugin: %s", plugin_name)
         info = imp.find_module(plugin_name, [plugin_dir])
         plugin = imp.load_module(plugin_name, *info)
@@ -78,6 +96,7 @@ def main(argv):
             plugin_config,
             config,
             inputs,
+            project_group, project,
             gitwrapper
         )
         plugin_obj.run()
