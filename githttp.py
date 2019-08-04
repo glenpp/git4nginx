@@ -68,10 +68,10 @@ def githandler(project, project_group=None, sub_path=None):
     if flask.request.method == 'GET':
         if sub_path == 'info/refs':
             if len(flask.request.args) != 1 or 'service' not in flask.request.args:
-                app.logger.critical("Unexpected query for GET {}: %s", sub_path, str(flask.request.args))
+                app.logger.critical("Unexpected query for GET %s: %s", sub_path, str(flask.request.args))
                 flask.abort(400)
             if flask.request.args['service'] not in ['git-upload-pack', 'git-receive-pack']:
-                app.logger.critical("Unexpected query for GET {}: %s", sub_path, str(flask.request.args))
+                app.logger.critical("Unexpected query for GET %s: %s", sub_path, str(flask.request.args))
                 flask.abort(400)
         else:
             app.logger.critical("Unexpected sub_path for GET: %s", sub_path)
