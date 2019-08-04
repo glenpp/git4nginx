@@ -62,6 +62,46 @@ def load_config():
 
 
 
+def repo_parts(repo_root, repo_dir=None):
+    """Calculate parts of the repo path (project group, project)
+
+    :arg repo_dir: str, optionally specify repo path else os.getcwd() is used
+    :return: tuple of:
+        project group, str|None
+        project, str
+    """
+    if repo_dir is None:
+        repo_dir = os.getcwd()
+    repo_dir = os.path.realpath(repo_dir)
+    common_path = os.path.commonpath([repo_dir, repo_root])
+    if not os.path.samefile(common_path, repo_root):
+        # sanity check fail - somehow the path is not below the repo
+        logging.critical(
+            "Likely misconfiguration: repo ({}) is not below configured repo_root ({})".format(
+                repo_dir,
+                repo_root,
+            )
+        )
+        sys.exit(1)
+    repo_rel = os.path.relpath(repo_dir, repo_root)
+    parts = repo_rel.split(os.sep)
+    if len(parts) == 1:
+        project_group = None
+        project = parts[0]
+    elif len(parts) == 2:
+        project_group = parts[0]
+        project = parts[1]
+    else:
+        logging.critical(
+            "Expect repo path with possible single project group directory but got: {}".format(
+                repo_rel
+            )
+        )
+        sys.exit(1)
+    return project_group, project
+
+
+
 class GitWrapper(object):
     """Run git commands and process output for programatic use
     """
