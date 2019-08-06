@@ -54,7 +54,10 @@ def main(argv):
     if username not in config['authentication']:
         hook_helper.log_abort("User %s not in authentication config", username)
     user_authentication = config['authentication'][username]
-    groups = user_authentication['groups'] if 'groups' in user_authentication else []
+    if 'groups' in user_authentication:
+        groups = set(user_authentication['groups'])
+    else:
+        groups = set()
     inputs = [argv, references]
     gitwrapper = hook_helper.GitWrapper()
     project_group, project = hook_helper.repo_parts(config['repo_root'])
