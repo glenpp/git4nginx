@@ -26,7 +26,7 @@ import hook_helper
 
 class Plugin(object):
     run_hooks = [
-        'update',
+        'pre-receive',
     ]
     def __init__(self, username, groups, user_authentication, plugin_config, config, inputs, project_group, project, gitwrapper):
         """Common setup for plugin
