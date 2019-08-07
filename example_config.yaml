@@ -11,6 +11,10 @@ authentication:
     groups:
       - developers_group
 
+  geoff:
+    groups:
+      - developers_group
+
   sydney:
     groups:
       - developers_group
@@ -20,6 +24,7 @@ authentication:
       - managers_group
 
 
+# who is allowed to access what
 authorisation:
   # any level can have lists of users with:
   #   .read_users:
@@ -28,6 +33,7 @@ authorisation:
   #   .read_groups:
   #   .write_groups:
   # write permission automatically implies read permission
+  # highest level of permission is given, inheriting from higher levels
   #
   # null (Python None) group is for to-level repos (ie not in a sub-directory)
 
@@ -54,8 +60,9 @@ authorisation:
 
 
 
+# hook config closest to leaf (project repo) is used
 hooks:
-  # global
+  # global (all repos with hook linked)
 
   # ensure changes go through each branch to prod
   # no developing in prod!
@@ -64,14 +71,41 @@ hooks:
     flow:
       - dev
       - test
+      - fake_global
       - master
 
-#  # project group
-#  default:
-#    # at group
-#
-#    # project
-#    test.git:
-#      # at project
+  # enforce branch write permissions on all repos below
+  # this can be overridden on any poit of the hierarchy
+  .branch_protect:
+    enable: true
+    branches:
+      # only specific users/groups allowed to write to master
+      master:
+        .write_users:
+          - sydney
+        .write_groups:
+          - managers_group
 
+
+
+  # project group
+  null:
+    # at group - top level
+    .branch_flow:
+      enable: true
+      flow:
+        - dev
+        - test
+        - master
+
+    # project
+    test.git:
+      # project config is highest priority
+      .branch_flow:
+        enable: true
+        flow:
+          - dev
+          - test
+          - stage
+          - master
 
