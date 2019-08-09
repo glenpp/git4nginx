@@ -1,6 +1,6 @@
 """Minimal git http wrapper for Nginx with uwsgi
 
-git-glue tools for using git via http(s) with Nginx
+git4nginx tools for using git via http(s) with Nginx
 Copyright (C) 2019  Glen Pitt-Pladdy
 
 This program is free software: you can redistribute it and/or modify
