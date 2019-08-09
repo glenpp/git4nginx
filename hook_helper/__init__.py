@@ -1,11 +1,30 @@
+"""Helper functions for git hooks
 
+git4nginx tools for using git via http(s) with Nginx
+Copyright (C) 2019  Glen Pitt-Pladdy
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+"""
 
 import logging
 import os
 import time
 import sys
-import yaml
 import subprocess
+import yaml
 
 
 
@@ -13,14 +32,14 @@ def setup_loggger():
     """Prepare default logger
     """
     # sanity check
-    if 'GITGLUE_LOG_DIR' not in os.environ:
-        raise KeyError("Require environment variable to be set: GITGLUE_LOG_DIR")
-    if not os.path.isdir(os.environ['GITGLUE_LOG_DIR']):
-        raise FileNotFoundError("Log directory not found: {}".format(os.environ['GITGLUE_LOG_DIR']))
+    if 'GIT4NGINX_LOG_DIR' not in os.environ:
+        raise KeyError("Require environment variable to be set: GIT4NGINX_LOG_DIR")
+    if not os.path.isdir(os.environ['GIT4NGINX_LOG_DIR']):
+        raise FileNotFoundError("Log directory not found: {}".format(os.environ['GIT4NGINX_LOG_DIR']))
     log_file = '{:.06f}_{}'.format(time.time(), sys.argv[0].split('/')[-1])
     # create log file
     logging.basicConfig(
-        filename=os.path.join(os.environ['GITGLUE_LOG_DIR'], log_file),
+        filename=os.path.join(os.environ['GIT4NGINX_LOG_DIR'], log_file),
         format='%(created)f [%(levelname)s] %(message)s (%(filename)s:%(lineno)d)',
         level=logging.DEBUG,
     )
@@ -39,13 +58,13 @@ def log_abort(message, exit_status=1):
 
 
 def load_config():
-    """Load the config file specified in uwsgi environment GITGLUE_CONFIG
+    """Load the config file specified in uwsgi environment GIT4NGINX_CONFIG
 
     :return: config contents (should be dict)
     """
-    if 'GITGLUE_CONFIG' not in os.environ:
-        raise KeyError("Require environment variable to be set: GITGLUE_CONFIG")
-    config_path = os.environ['GITGLUE_CONFIG']
+    if 'GIT4NGINX_CONFIG' not in os.environ:
+        raise KeyError("Require environment variable to be set: GIT4NGINX_CONFIG")
+    config_path = os.environ['GIT4NGINX_CONFIG']
     # read config
     try:
         with open(config_path, 'rt') as f_conf:
@@ -77,10 +96,9 @@ def repo_parts(repo_root, repo_dir=None):
     if not os.path.samefile(common_path, repo_root):
         # sanity check fail - somehow the path is not below the repo
         logging.critical(
-            "Likely misconfiguration: repo ({}) is not below configured repo_root ({})".format(
-                repo_dir,
-                repo_root,
-            )
+            "Likely misconfiguration: repo (%s) is not below configured repo_root (%s)",
+            repo_dir,
+            repo_root,
         )
         sys.exit(1)
     repo_rel = os.path.relpath(repo_dir, repo_root)
@@ -93,9 +111,8 @@ def repo_parts(repo_root, repo_dir=None):
         project = parts[1]
     else:
         logging.critical(
-            "Expect repo path with possible single project group directory but got: {}".format(
-                repo_rel
-            )
+            "Expect repo path with possible single project group directory but got: %s",
+            repo_rel
         )
         sys.exit(1)
     return project_group, project
@@ -174,8 +191,8 @@ class GitWrapper(object):
                 # regular range
                 revision_range = '..'.join(revision_range)
         elif not isinstance(revision_range, str):
-            raise RuntimeError("Need revision_range of 2-item list or string, got %s: %s", revision_range.__class__.__name__, str(revision_range))
-        status, stdout, stderr = self.git_run(['rev-list', revision_range])
+            raise RuntimeError("Need revision_range of 2-item list or string, got {}: {}".format(revision_range.__class__.__name__, str(revision_range)))
+        status, stdout, _ = self.git_run(['rev-list', revision_range])
         if status:
             # fail
             return []
