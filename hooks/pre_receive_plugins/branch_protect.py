@@ -28,12 +28,12 @@ class Plugin(object):
     run_hooks = [
         'pre-receive',
     ]
-    def __init__(self, username, groups, user_authentication, plugin_config, config, inputs, project_group, project, gitwrapper):
+    def __init__(self, username, groups, user_info, plugin_config, config, inputs, project_group, project, gitwrapper):
         """Common setup for plugin
         """
         self.username = username
         self.groups = groups
-        self.user_authentication = user_authentication
+        self.user_info = user_info
         self.plugin_config = plugin_config
         self.config = config
         self.argv = inputs[0]
