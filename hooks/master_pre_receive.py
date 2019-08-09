@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Master pre-receive hook - symlink from repo to this
 
-git-glue tools for using git via http(s) with Nginx
+git4nginx tools for using git via http(s) with Nginx
 Copyright (C) 2019  Glen Pitt-Pladdy
 
 This program is free software: you can redistribute it and/or modify
@@ -24,6 +24,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import os
 import sys
 import logging
+import json
 import imp
 # custom helper needs us to find the path first
 sys.path.append(os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
@@ -31,6 +32,10 @@ import hook_helper
 
 
 def log_abort(message, exit_status=1):
+    """Log and abort plugin (fail) with message
+
+    :arg message: str, message returned to client
+    """
     print(message, file=sys.stderr)
     if exit_status is not None:
         sys.exit(exit_status)
@@ -39,6 +44,10 @@ def log_abort(message, exit_status=1):
 
 
 def main(argv):
+    """Main entry point for hook
+
+    :argv: list, arguments passed to hook
+    """
     hook_helper.setup_loggger()
     config = hook_helper.load_config()
     hook_name = argv[0].split('/')[-1]
@@ -49,15 +58,14 @@ def main(argv):
     references = [line.strip().split(' ') for line in sys.stdin]
     # prepare plugin info
     if 'REMOTE_USER' not in os.environ:
-        hook_helper.log_abort("No REMOTE_USER in environment")
+        hook_helper.log_abort("No REMOTE_USER in environment")  # TODO more serious
     username = os.environ['REMOTE_USER']
-    if username not in config['authentication']:
-        hook_helper.log_abort("User %s not in authentication config", username)
-    user_authentication = config['authentication'][username]
-    if 'groups' in user_authentication:
-        groups = set(user_authentication['groups'])
-    else:
-        groups = set()
+    if 'GIT4NGINX_GROUPS' not in os.environ:
+        hook_helper.log_abort("No GIT4NGINX_GROUPS in environment") # TODO more serious
+    groups = set(json.loads(os.environ['GIT4NGINX_GROUPS']))
+    if 'GIT4NGINX_INFO' not in os.environ:
+        hook_helper.log_abort("No GIT4NGINX_INFO in environment")   # TODO more seriouis
+    user_info = set(json.loads(os.environ['GIT4NGINX_INFO']))
     inputs = [argv, references]
     gitwrapper = hook_helper.GitWrapper()
     project_group, project = hook_helper.repo_parts(config['repo_root'])
@@ -95,7 +103,7 @@ def main(argv):
         plugin_obj = plugin.Plugin(
             username,
             groups,
-            user_authentication,
+            user_info,
             plugin_config,
             config,
             inputs,
