@@ -28,6 +28,8 @@ import os
 import json
 import base64
 import yaml
+import select
+import fcntl
 
 
 
@@ -103,7 +105,6 @@ def githandler(project, project_group=None, sub_path=None):
     else:
         app.logger.critical("Unexpected HTTP METHOD: %s", flask.request.method)
         flask.abort(400)
-    flask.abort(401)
 
     # load config
     config = load_config()
@@ -192,7 +193,7 @@ def githandler(project, project_group=None, sub_path=None):
     if flask.request.method == 'POST':
         with HookLogDir() as temp_log_dir:
             extra_env['GIT4NGINX_LOG_DIR'] = temp_log_dir
-            response = cgi_wrapper(config['bin_path'], extra_env, flask.request.data)   # TODO switch to flask.request.stream for input
+            response = cgi_wrapper(config['bin_path'], extra_env, flask.request.stream)
         return response
     return cgi_wrapper(config['bin_path'], extra_env)
 
@@ -337,11 +338,11 @@ class HookLogDir(object):
 
 
 
-def cgi_wrapper(bin_path, extra_env=None, data=None):
+def cgi_wrapper(bin_path, extra_env=None, stream=None):
     """Run cgi translating from flask environment
 
     :arg bin_path: str, binary to execute
-    :arg data: str|None, optional data to pass to script (stdin) else will passh-through
+    :arg stream: stream|None, optional data stream to pass to cgi (stdin) else will pass-through
     :return: flask response
     """
     # generate execution environment
@@ -369,12 +370,48 @@ def cgi_wrapper(bin_path, extra_env=None, data=None):
             stdin=subprocess.PIPE,
             env=cgienv
         )
-        if data is None:
+        if stream is None:
             stdout, stderr = proc.communicate(flask.request.stream.read())
         else:
-            stdout, stderr = proc.communicate(data)
+            # make outputs non-blocking
+            fd = proc.stdout.fileno()
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            fd = proc.stderr.fileno()
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            # setup buffers
+            stdout = b''
+            stderr = b''
+            # send data (stdin) until complete
+            send_complete = False
+            while proc.poll() is None and not send_complete:
+                outputs, inputs, _ = select.select([proc.stdout, proc.stderr], [proc.stdin], [], 0.05)
+                for output in outputs:
+                    if output is proc.stdout:
+                        stdout += proc.stdout.read()
+                    elif output is proc.stderr:
+                        stderr += proc.stderr.read()
+                if inputs:
+                    data = stream.read(1024)
+                    if data:
+                        proc.stdin.write(data)
+                    else:
+                        proc.stdin.close()
+                        send_complete = True
+            # sending complete, mop up outputs
+            while proc.poll() is None:
+                outputs, _, _ = select.select([proc.stdout, proc.stderr], [], [], 0.05)
+                for output in outputs:
+                    if output is proc.stdout:
+                        stdout += proc.stdout.read()
+                    elif output is proc.stderr:
+                        stderr += proc.stderr.read()
+            # make sure nothing is left in buffers
+            stdout += proc.stdout.read()
+            stderr += proc.stderr.read()
     if proc.returncode != 0:
-        app.logger.debug("%s returned %d", bin_path, proc.returncode)
+        app.logger.debug("%s returned %s", bin_path, str(proc.returncode))
         app.logger.debug("%s stdout:\n%s\n--- end stderr", bin_path, stdout)
         app.logger.debug("%s stderr:\n%s\n--- end stderr", bin_path, stderr)
         flask.abort(500)
