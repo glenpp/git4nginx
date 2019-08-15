@@ -47,6 +47,12 @@ logging.basicConfig(
 )
 app.logger.handlers = []
 app.logger.propagate = True
+# TODO set level TODO
+if 'GIT4NGINX_LOG_LEVEL' in os.environ:
+    app.logger.info("log level to set: %s", os.environ['GIT4NGINX_LOG_LEVEL'])
+    #getattr(logging, 'ERROR')
+else:
+    app.logger.info("log level not set - use default")
 
 
 @app.errorhandler(401)
@@ -183,6 +189,9 @@ def githandler(project, project_group=None, sub_path=None):
 
     # run the cgi-bin with wrapper with appropriate environment variables
     extra_env = {
+        # config
+        'GIT4NGINX_CONFIG': os.environ['GIT4NGINX_CONFIG'],
+        # setup for git
         'GIT_PROJECT_ROOT': config['repo_root'],
         'GIT_HTTP_EXPORT_ALL': '',
         # user details exposed to hooks
@@ -267,18 +276,18 @@ class Permissions(object):
 
 
 def load_config():
-    """Load the config file specified in uwsgi environment GIT4NGINX_CONFIG
+    """Load the config file specified in os environment GIT4NGINX_CONFIG
 
     :return: config contents (should be dict)
     """
-    if 'GIT4NGINX_CONFIG' not in flask.request.environ:
-        app.logger.critical("Configuration file not configured: GIT4NGINX_CONFIG must be in uwsgi environment")
+    if 'GIT4NGINX_CONFIG' not in os.environ:
+        app.logger.critical("Configuration file not configured: GIT4NGINX_CONFIG must be in OS environment")
         flask.abort(500)
     try:
-        with open(flask.request.environ['GIT4NGINX_CONFIG'], 'rt') as f_conf:
+        with open(os.environ['GIT4NGINX_CONFIG'], 'rt') as f_conf:
             config = yaml.safe_load(f_conf)
     except FileNotFoundError:
-        app.logger.critical("Configuration file not found: %s", flask.request.environ['GIT4NGINX_CONFIG'])
+        app.logger.critical("Configuration file not found: %s", os.environ['GIT4NGINX_CONFIG'])
         flask.abort(500)
     except yaml.parser.ParserError as exc:
         app.logger.critical("Configuration file yaml error:\n%s", exc)
