@@ -40,19 +40,16 @@ app = flask.Flask(__name__)
 # TODO do better
 # ensure our logger is used see http://y.tsutsumi.io/global-logging-with-flask.html
 logging.basicConfig(
-    format='[%(asctime)s] %(levelname)s %(filename)s:%(lineno)d - %(message)s',
+    format='%(asctime)s - %(levelname)s %(message)s (%(filename)s:%(lineno)d)',
     datefmt='%c',
-    #level=logging.INFO,
-    level=logging.DEBUG,
+    level=(
+        getattr(logging, os.environ['GIT4NGINX_LOG_LEVEL'])
+        if 'GIT4NGINX_LOG_LEVEL' in os.environ
+        else logging.INFO
+    )
 )
 app.logger.handlers = []
 app.logger.propagate = True
-# TODO set level TODO
-if 'GIT4NGINX_LOG_LEVEL' in os.environ:
-    app.logger.info("log level to set: %s", os.environ['GIT4NGINX_LOG_LEVEL'])
-    #getattr(logging, 'ERROR')
-else:
-    app.logger.info("log level not set - use default")
 
 
 @app.errorhandler(401)
@@ -331,16 +328,27 @@ class HookLogDir(object):
             _, hook = log.split('_', 1)
             log_path = os.path.join(self._path, log)
             with open(log_path, 'rt') as f_log:
+                exception = False
                 for line in f_log:
                     match = re.match(r'^(\d+\.\d+)\s+\[(\w+)\]\s+(\S.*)\s+\(([^\(\)]+)\)$', line.strip())
                     if not match:
-                        app.logger.critical("%s - Can't parse hook log %s line: %s", hook, log, line)
+                        if exception:
+                            # exception trace - just pass through until we get a line we recognise
+                            app.logger.error(line.rstrip())
+                        else:
+                            # can't figure out what this is
+                            app.logger.critical("%s - Can't parse hook log %s line: %s", hook, log, line)
                         continue
                     if match.group(2) not in self.level2int:
                         app.logger.critical("%s - Don't have a log level match for %s in line: %s", hook, match.group(2), line)
+                        exception = False   # back to regular logging
                         continue
                     level = self.level2int[match.group(2)]
                     app.logger.log(level, "%s - %s", hook, match.group(3))
+                    #if line.startswith('Exception in plugin: '):
+                    if re.match(r'^(\d+\.\d+)\s+\[(\w+)\]\s+Exception in plugin: ', line):
+                        # following is an exception
+                        exception = True
             app.logger.debug("end logfile: %s", log)
             os.unlink(log_path)
         os.rmdir(self._path)

@@ -31,17 +31,6 @@ sys.path.append(os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(_
 import hook_helper
 
 
-def log_abort(message, exit_status=1):
-    """Log and abort plugin (fail) with message
-
-    :arg message: str, message returned to client
-    """
-    print(message, file=sys.stderr)
-    if exit_status is not None:
-        sys.exit(exit_status)
-
-
-
 
 def main(argv):
     """Main entry point for hook
@@ -97,20 +86,25 @@ def main(argv):
             continue
         # load and run the plugin
         logging.info("Loading plugin: %s", plugin_name)
-        info = imp.find_module(plugin_name, [plugin_dir])
-        plugin = imp.load_module(plugin_name, *info)
-        logging.info("Executing plugin: %s", plugin_name)
-        plugin_obj = plugin.Plugin(
-            username,
-            groups,
-            user_info,
-            plugin_config,
-            config,
-            inputs,
-            project_group, project,
-            gitwrapper
-        )
-        plugin_obj.run()
+        # catch any exceptions for the plugin
+        try:
+            info = imp.find_module(plugin_name, [plugin_dir])
+            plugin = imp.load_module(plugin_name, *info)
+            logging.info("Executing plugin: %s", plugin_name)
+            plugin_obj = plugin.Plugin(
+                username,
+                groups,
+                user_info,
+                plugin_config,
+                config,
+                inputs,
+                project_group, project,
+                gitwrapper
+            )
+            plugin_obj.run()
+        except Exception as exc:
+            logging.error("Exception in plugin: %s", exc.__class__.__name__, exc_info=True)
+            sys.exit("Hook failed")
 
 
 
